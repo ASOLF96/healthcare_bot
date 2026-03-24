@@ -478,33 +478,19 @@ export default function HealthBotAI() {
   const [specialtyFilter, setSpecialtyFilter] = useState("all");
   const [hospitalSearchQuery, setHospitalSearchQuery] = useState("");
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authName, setAuthName] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Effects
   useEffect(() => {
-    fetch('/users/api/me/')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.user) {
-          setIsAuthenticated(true);
-          setUser(data.user);
-          setCurrentPage("chat");
-        }
-      })
-      .catch(console.error);
-  }, []);
+    setUser(isAuthenticated ? USER_PROFILE : null);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Handlers
-  const handleSendMessage = useCallback(async () => {
+  const handleSendMessage = useCallback(() => {
     if (!inputMessage.trim()) return;
 
     const userMessage: Message = {
@@ -515,113 +501,57 @@ export default function HealthBotAI() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    const currentInput = inputMessage;
     setInputMessage("");
     setIsTyping(true);
 
-    try {
-      const res = await fetch('/chat/get_response/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput })
-      });
-      const data = await res.json();
+    setTimeout(() => {
+      let response = BOT_RESPONSES.default;
+      const lowerInput = inputMessage.toLowerCase();
       
+      if (lowerInput.includes("hello") || lowerInput.includes("hi")) {
+        response = BOT_RESPONSES.hello;
+      } else if (lowerInput.includes("headache") || lowerInput.includes("head pain")) {
+        response = BOT_RESPONSES.headache;
+      } else if (lowerInput.includes("doctor") || lowerInput.includes("find")) {
+        response = BOT_RESPONSES.doctor;
+      }
+
       const botMessage: Message = {
         id: `bot-${Date.now()}`,
         role: "assistant",
-        content: data.response || "Sorry, I could not process your request.",
+        content: response,
         timestamp: new Date(),
       };
+
       setMessages((prev) => [...prev, botMessage]);
-    } catch (error) {
-      console.error(error);
-      const errorMessage: Message = {
-        id: `error-${Date.now()}`,
-        role: "assistant",
-        content: "Network error occurred while reaching the server.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
       setIsTyping(false);
-    }
+    }, 1200);
   }, [inputMessage]);
 
-  const handleLogin = useCallback(async (e: React.FormEvent) => {
+  const handleLogin = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const res = await fetch('/users/api/login/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail, password: authPassword })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setIsAuthenticated(true);
-        setUser(data.user);
-        setShowAuthModal(false);
-        setCurrentPage("chat");
-        toast.success("Welcome back!");
-      } else {
-        const msg = data.message || "Invalid email or password. Please try again.";
-        setAuthError(msg);
-        toast.error(msg);
-      }
-    } catch (err) {
-      const msg = "Connection error. Please check your network.";
-      setAuthError(msg);
-      toast.error(msg);
-    } finally {
-      setAuthLoading(false);
-      setAuthPassword("");
-    }
-  }, [authEmail, authPassword]);
+    setIsAuthenticated(true);
+    setShowAuthModal(false);
+    setCurrentPage("chat");
+    toast.success("Welcome back!");
+  }, []);
 
-  const handleRegister = useCallback(async (e: React.FormEvent) => {
+  const handleRegister = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const res = await fetch('/users/api/register/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: authName, email: authEmail, password: authPassword })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setIsAuthenticated(true);
-        setUser(data.user);
-        setShowAuthModal(false);
-        setCurrentPage("chat");
-        toast.success("Account created successfully!");
-      } else {
-        const msg = data.message || "Registration failed. Please try again.";
-        setAuthError(msg);
-        toast.error(msg);
-      }
-    } catch (err) {
-      const msg = "Connection error. Please check your network.";
-      setAuthError(msg);
-      toast.error(msg);
-    } finally {
-      setAuthLoading(false);
-      setAuthPassword("");
-    }
-  }, [authEmail, authPassword, authName]);
+    setIsAuthenticated(true);
+    setShowAuthModal(false);
+    setCurrentPage("chat");
+    toast.success("Account created successfully!");
+  }, []);
 
-  const handleLogout = useCallback(async () => {
-    try {
-      await fetch('/users/api/logout/', { method: 'POST' });
-    } catch (e) { console.error(e); }
+  const handleLogout = useCallback(() => {
     setIsAuthenticated(false);
     setUser(null);
     setCurrentPage("landing");
     setMessages([]);
     toast.info("Logged out successfully");
   }, []);
+
   // Filtered Data
   const filteredDoctors = useMemo(() => 
     DOCTORS.filter((doctor) => {
@@ -646,7 +576,7 @@ export default function HealthBotAI() {
   // ============================================
   
   // Navigation
-  const AppNavigation = () => (
+  const Navigation = () => (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0c0f1a]/90 backdrop-blur-md border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
@@ -1328,29 +1258,24 @@ export default function HealthBotAI() {
           <DialogTitle className="text-xl font-bold text-center">{authMode === "login" ? "Welcome Back" : "Create Account"}</DialogTitle>
           <DialogDescription className="text-center text-slate-400 text-sm">{authMode === "login" ? "Sign in to continue" : "Join HealthBot AI"}</DialogDescription>
         </DialogHeader>
-        <Tabs value={authMode} onValueChange={(v) => { setAuthMode(v as "login" | "register"); setAuthError(""); }}>
+        <Tabs value={authMode} onValueChange={(v) => setAuthMode(v as "login" | "register")}>
           <TabsList className="grid w-full grid-cols-2 bg-white/5 mb-5 h-9">
             <TabsTrigger value="login" className="data-[state=active]:bg-indigo-500 data-[state=active]:text-white text-xs">Login</TabsTrigger>
             <TabsTrigger value="register" className="data-[state=active]:bg-indigo-500 data-[state=active]:text-white text-xs">Register</TabsTrigger>
           </TabsList>
-          {authError && (
-            <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-              <span className="text-red-400">⚠</span> {authError}
-            </div>
-          )}
           <TabsContent value="login">
             <form onSubmit={handleLogin} className="space-y-3">
-              <div><Label className="text-slate-300 text-xs">Email</Label><div className="relative mt-1"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="you@example.com" className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /></div></div>
-              <div><Label className="text-slate-300 text-xs">Password</Label><div className="relative mt-1"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type={showPassword ? "text" : "password"} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="••••••••" className="pl-9 pr-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
-              <Button type="submit" disabled={authLoading} className="w-full btn-primary">{authLoading ? "Authenticating..." : "Sign In"} <ArrowRight className="w-4 h-4 ml-1.5" /></Button>
+              <div><Label className="text-slate-300 text-xs">Email</Label><div className="relative mt-1"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type="email" placeholder="you@example.com" className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /></div></div>
+              <div><Label className="text-slate-300 text-xs">Password</Label><div className="relative mt-1"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type={showPassword ? "text" : "password"} placeholder="••••••••" className="pl-9 pr-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
+              <Button type="submit" className="w-full btn-primary">Sign In <ArrowRight className="w-4 h-4 ml-1.5" /></Button>
             </form>
           </TabsContent>
           <TabsContent value="register">
             <form onSubmit={handleRegister} className="space-y-3">
-              <div><Label className="text-slate-300 text-xs">Full Name</Label><div className="relative mt-1"><User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type="text" value={authName} onChange={(e) => setAuthName(e.target.value)} placeholder="John Doe" className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /></div></div>
-              <div><Label className="text-slate-300 text-xs">Email</Label><div className="relative mt-1"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="you@example.com" className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /></div></div>
-              <div><Label className="text-slate-300 text-xs">Password</Label><div className="relative mt-1"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type={showPassword ? "text" : "password"} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="••••••••" className="pl-9 pr-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
-              <Button type="submit" disabled={authLoading} className="w-full btn-primary">{authLoading ? "Creating..." : "Create Account"} <ArrowRight className="w-4 h-4 ml-1.5" /></Button>
+              <div><Label className="text-slate-300 text-xs">Full Name</Label><div className="relative mt-1"><User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type="text" placeholder="John Doe" className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /></div></div>
+              <div><Label className="text-slate-300 text-xs">Email</Label><div className="relative mt-1"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type="email" placeholder="you@example.com" className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /></div></div>
+              <div><Label className="text-slate-300 text-xs">Password</Label><div className="relative mt-1"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /><Input type={showPassword ? "text" : "password"} placeholder="••••••••" className="pl-9 pr-9 bg-white/5 border-white/10 text-white placeholder:text-slate-500" required /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
+              <Button type="submit" className="w-full btn-primary">Create Account <ArrowRight className="w-4 h-4 ml-1.5" /></Button>
             </form>
           </TabsContent>
         </Tabs>
@@ -1368,17 +1293,17 @@ export default function HealthBotAI() {
   // ============================================
   return (
     <div className="min-h-screen bg-[#0c0f1a]">
-      {AppNavigation()}
+      <Navigation />
       <AnimatePresence mode="wait">
         <motion.div key={currentPage} variants={fadeIn} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
-          {currentPage === "landing" && LandingPage()}
-          {currentPage === "chat" && ChatPage()}
-          {currentPage === "profile" && ProfilePage()}
-          {currentPage === "doctors" && DoctorsPage()}
-          {currentPage === "hospitals" && HospitalsPage()}
+          {currentPage === "landing" && <LandingPage />}
+          {currentPage === "chat" && <ChatPage />}
+          {currentPage === "profile" && <ProfilePage />}
+          {currentPage === "doctors" && <DoctorsPage />}
+          {currentPage === "hospitals" && <HospitalsPage />}
         </motion.div>
       </AnimatePresence>
-      {AuthModal()}
+      <AuthModal />
     </div>
   );
 }
